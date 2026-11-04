@@ -97,7 +97,8 @@
   const weekStart = (d) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const wd = (x.getDay() + 6) % 7; return addDays(x, -wd); };
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  const money = (n) => {
+  const money = (n) => (n < 0 ? '−' : '') + moneyAbs(Math.abs(n || 0));
+  const moneyAbs = (n) => {
     try {
       const noDecimals = ['CLP', 'COP', 'ARS'].includes(db.currency);
       const locale = { CLP: 'es-CL', COP: 'es-CO', MXN: 'es-MX', ARS: 'es-AR', PEN: 'es-PE', USD: 'en-US', EUR: 'es-ES' }[db.currency] || 'es';
@@ -273,7 +274,7 @@
     $('#login').hidden = true;
     $('#app').hidden = false;
     renderAll();
-    requestAnimationFrame(moveIndicator);
+    requestAnimationFrame(() => { moveIndicator(); $$('.kpi-value').forEach(fitText); });
   }
 
   // ---------- Navigation ----------
@@ -283,6 +284,7 @@
     $$('.tab').forEach((t) => t.classList.toggle('is-active', t.dataset.view === view));
     $$('.view').forEach((v) => v.classList.toggle('is-active', v.dataset.view === view));
     moveIndicator();
+    if (view === 'resumen') $$('.kpi-value').forEach(fitText);
     window.scrollTo({ top: 0 });
   }
   function moveIndicator() {
@@ -308,14 +310,31 @@
     period = b.dataset.period;
     $$('#period-switch button').forEach((x) => x.classList.toggle('is-active', x === b));
     renderKpis(true);
+    $$('.kpi-value').forEach(fitText);
   });
 
   function setVal(id, text, animate) {
     const el = $(id);
     if (el.textContent === text) return;
     el.textContent = text;
+    fitText(el);
     if (animate) { el.classList.remove('tick'); void el.offsetWidth; el.classList.add('tick'); }
   }
+
+  // Shrink a number until it fits its card, so big amounts never get cut off on small screens.
+  function fitText(el) {
+    el.style.fontSize = '';
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    while (el.scrollWidth > el.clientWidth + 1 && size > 12) {
+      size -= 1;
+      el.style.fontSize = size + 'px';
+    }
+  }
+  let fitTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(() => $$('.kpi-value').forEach(fitText), 100);
+  });
 
   function renderKpis(animate) {
     const r = range(period);
@@ -389,8 +408,8 @@
     return `<li class="item" data-id="${a.id}">
       <div class="item-badge"><span>${esc(d.toLocaleDateString('es', { month: 'short' }).replace('.', ''))}<b>${d.getDate()}</b></span></div>
       <div class="item-main">
-        <p class="item-title">${esc(a.client)} ${tag}</p>
-        <p class="item-sub">${esc(a.time || '')} · ${esc(cap(d.toLocaleDateString('es', { weekday: 'long' })))}${a.phone ? ' · ' + esc(a.phone) : ''}${a.note ? ' · ' + esc(a.note) : ''}</p>
+        <p class="item-title"><span class="item-name">${esc(a.client)}</span>${tag}</p>
+        <p class="item-sub">${esc(a.time || '')} · ${esc(cap(d.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'short' })))}${a.phone ? ' · ' + esc(a.phone) : ''}${a.note ? ' · ' + esc(a.note) : ''}</p>
       </div>
       ${a.price ? `<span class="item-amount">${money(a.price)}</span>` : ''}
       ${actions}
@@ -544,7 +563,7 @@
       const d = parse(e.date);
       return `<li class="item ${e.id === newId ? 'enter' : ''}" data-id="${e.id}">
         <div class="item-badge"><span>${esc(d.toLocaleDateString('es', { month: 'short' }).replace('.', ''))}<b>${d.getDate()}</b></span></div>
-        <div class="item-main"><p class="item-title">${esc(e.concept)}</p><p class="item-sub">${esc(CATS[e.category] || e.category)}</p></div>
+        <div class="item-main"><p class="item-title">${esc(e.concept)}</p><p class="item-sub">${esc(CATS[e.category] || e.category)} · ${esc(fmtDate(e.date, { day: 'numeric', month: 'short' }))}</p></div>
         <span class="item-amount neg">−${money(e.amount)}</span>
         <div class="item-actions"><button class="icon-btn danger" data-del-exp="${e.id}" title="Eliminar">✕</button></div>
       </li>`;
