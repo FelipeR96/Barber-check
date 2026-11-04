@@ -21,4 +21,10 @@ Abre `index.html` o sírvelo localmente:
 python -m http.server 5178
 ```
 
-Para publicarlo gratis: GitHub → Settings → Pages → rama `main`, carpeta raíz.
+Publicado en Vercel: https://barber-check-three.vercel.app
+
+Para volver a publicar después de un cambio:
+
+```bash
+npx vercel deploy --prod
+```
