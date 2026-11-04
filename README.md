@@ -6,9 +6,12 @@ Sitio sencillo para una barbería, pensado para un solo barbero.
 - **Citas**: agenda clientes; al marcar una cita como atendida se registra el cobro.
 - **Gastos**: costos fijos, insumos, equipo y otros gastos.
 - **Resumen**: ganancia neta, ingresos y gastos del día, la semana y el mes, gráfico de los últimos 14 días y tabla por mes.
-- **PIN** de acceso, moneda configurable y respaldo/restauración en JSON.
+- **Cuenta** con correo y contraseña + **PIN** por dispositivo para desbloquear rápido.
+- Moneda configurable y respaldo/restauración en JSON.
 
-Sin dependencias ni build: HTML + CSS + JS. Los datos se guardan en el navegador (`localStorage`), así que conviene descargar un respaldo de vez en cuando.
+Sin build: HTML + CSS + JS. Los datos se guardan en **Supabase** (Postgres) con Row Level Security: cada cuenta solo puede leer y escribir sus propias filas. La configuración del proyecto está en `config.js` (la clave publicable es segura en el navegador).
+
+Tablas: `cuts`, `appts`, `expenses`, `settings`.
 
 ## Usar
 

@@ -1,11 +1,14 @@
 (() => {
   'use strict';
 
-  // ---------- Storage ----------
-  const KEY = 'barbercheck:v1';
-  const AUTH = 'barbercheck:auth';
+  // ---------- Cloud storage (Supabase) ----------
+  const cfg = window.BARBER_CONFIG;
+  const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
+  const UNLOCK = 'barbercheck:unlocked';
+  const pinKey = () => `barbercheck:pin:${user ? user.id : ''}`;
+  let user = null;
+
   const defaults = () => ({
-    pinHash: null,
     shop: '',
     currency: 'CLP',
     prices: [8000, 10000, 12000, 15000],
@@ -13,19 +16,63 @@
     expenses: [],
     appts: [],
   });
+  let db = defaults();
 
-  let db = load();
-  function load() {
-    try {
-      const raw = localStorage.getItem(KEY);
-      return raw ? { ...defaults(), ...JSON.parse(raw) } : defaults();
-    } catch { return defaults(); }
+  const num = (v) => Number(v) || 0;
+  const fromCut = (r) => ({ id: r.id, date: r.date, time: r.time || '', price: num(r.price), tip: num(r.tip), method: r.method || '', client: r.client || '', createdAt: Date.parse(r.created_at) || 0 });
+  const fromExp = (r) => ({ id: r.id, date: r.date, concept: r.concept, amount: num(r.amount), category: r.category });
+  const fromAppt = (r) => ({ id: r.id, date: r.date, time: r.time || '', client: r.client, phone: r.phone || '', price: num(r.price), note: r.note || '', status: r.status });
+  const toRow = {
+    cuts: (c) => ({ id: c.id, date: c.date, time: c.time || null, price: c.price, tip: c.tip, method: c.method, client: c.client || null }),
+    expenses: (e) => ({ id: e.id, date: e.date, concept: e.concept, amount: e.amount, category: e.category }),
+    appts: (a) => ({ id: a.id, date: a.date, time: a.time || null, client: a.client, phone: a.phone || null, price: a.price, note: a.note || null, status: a.status }),
+  };
+
+  // PostgREST caps responses at 1000 rows, so read each table in pages.
+  async function fetchAll(table) {
+    const size = 1000, rows = [];
+    for (let from = 0; ; from += size) {
+      const { data, error } = await sb.from(table).select('*').order('id').range(from, from + size - 1);
+      if (error) return { data: null, error };
+      rows.push(...data);
+      if (data.length < size) return { data: rows, error: null };
+    }
   }
-  function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(db)); }
-    catch { toast('No se pudo guardar en este navegador'); }
+
+  async function loadAll() {
+    const [cuts, exps, appts, settings] = await Promise.all([
+      fetchAll('cuts'),
+      fetchAll('expenses'),
+      fetchAll('appts'),
+      sb.from('settings').select('*').maybeSingle(),
+    ]);
+    const err = cuts.error || exps.error || appts.error || settings.error;
+    if (err) throw err;
+    db = defaults();
+    db.cuts = cuts.data.map(fromCut);
+    db.expenses = exps.data.map(fromExp);
+    db.appts = appts.data.map(fromAppt);
+    if (settings.data) {
+      db.shop = settings.data.shop || '';
+      db.currency = settings.data.currency || 'CLP';
+      db.prices = (settings.data.prices || []).map(num);
+    }
   }
-  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+  // Writes are optimistic: the UI updates immediately, the cloud call runs behind it.
+  async function cloud(promise) {
+    const { error } = await promise;
+    if (error) {
+      console.error(error);
+      toast('No se pudo guardar en la nube. Revisa tu conexión.');
+      try { await loadAll(); renderAll(); } catch {}
+    }
+  }
+  const put = (table, item) => cloud(sb.from(table).upsert(toRow[table](item)));
+  const del = (table, id) => cloud(sb.from(table).delete().eq('id', id));
+  const saveSettings = () => cloud(sb.from('settings').upsert({ shop: db.shop, currency: db.currency, prices: db.prices, updated_at: new Date().toISOString() }));
+
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
 
   async function hash(text) {
     const salted = 'barbercheck::' + text;
@@ -101,15 +148,86 @@
   }
 
   // ---------- Auth ----------
+  // Step 1: email + password (Supabase). Step 2: device PIN as a quick lock.
+  let signUp = false;
+  function showAuth() {
+    $('#app').hidden = true;
+    $('#login').hidden = false;
+    $('#login-form').hidden = true;
+    $('#loading').hidden = true;
+    $('#auth-form').hidden = false;
+    $('#login-hint').textContent = signUp ? 'Crea tu cuenta con correo y contraseña' : 'Entra con tu correo';
+    $('#auth-btn').textContent = signUp ? 'Crear cuenta' : 'Entrar';
+    $('#auth-toggle').textContent = signUp ? 'Ya tengo cuenta' : '¿Primera vez? Crear cuenta';
+    $('#password').autocomplete = signUp ? 'new-password' : 'current-password';
+    $('#auth-error').textContent = '';
+    setTimeout(() => $('#email').focus(), 50);
+  }
+  function showLoading() {
+    $('#auth-form').hidden = true;
+    $('#login-form').hidden = true;
+    $('#login-hint').textContent = '';
+    $('#loading').hidden = false;
+  }
+  $('#auth-toggle').addEventListener('click', () => { signUp = !signUp; showAuth(); });
+  $('#auth-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = $('#email').value.trim();
+    const password = $('#password').value;
+    $('#auth-btn').disabled = true;
+    $('#auth-error').textContent = '';
+    try {
+      if (signUp) {
+        const { data, error } = await sb.auth.signUp({ email, password });
+        if (error) throw error;
+        if (!data.session) {
+          signUp = false; showAuth();
+          $('#login-hint').textContent = 'Te enviamos un correo. Confírmalo y luego entra aquí.';
+          return;
+        }
+        user = data.user;
+      } else {
+        const { data, error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        user = data.user;
+      }
+      afterAuth();
+    } catch (err) {
+      const msg = String(err.message || err);
+      $('#auth-error').textContent =
+        /invalid login/i.test(msg) ? 'Correo o contraseña incorrectos'
+        : /not confirmed/i.test(msg) ? 'Primero confirma tu correo (revisa tu bandeja)'
+        : /already registered/i.test(msg) ? 'Ese correo ya tiene cuenta, entra con él'
+        : /at least 6/i.test(msg) ? 'La contraseña debe tener al menos 6 caracteres'
+        : msg;
+      const card = $('.login-card');
+      card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
+    } finally {
+      $('#auth-btn').disabled = false;
+    }
+  });
+
+  function afterAuth() {
+    let pin = null, unlocked = false;
+    try { pin = localStorage.getItem(pinKey()); unlocked = sessionStorage.getItem(UNLOCK) === user.id; } catch {}
+    if (!pin) showLogin('setup');
+    else if (unlocked) enter();
+    else showLogin('login');
+  }
+
   let loginMode = 'login'; // login | setup
   function showLogin(mode) {
     loginMode = mode;
     $('#app').hidden = true;
     $('#login').hidden = false;
+    $('#auth-form').hidden = true;
+    $('#loading').hidden = true;
+    $('#login-form').hidden = false;
+    $('#forgot-pin').hidden = mode === 'setup';
     const setup = mode === 'setup';
     $('#pin2').hidden = !setup;
     $('#pin2').required = setup;
-    $('#login-hint').textContent = setup ? 'Crea un PIN de 4 a 8 dígitos' : 'Ingresa tu PIN para continuar';
+    $('#login-hint').textContent = setup ? 'Crea un PIN de 4 a 8 dígitos para este dispositivo' : 'Ingresa tu PIN para continuar';
     $('#login-btn').textContent = setup ? 'Crear PIN' : 'Entrar';
     $('#login-error').textContent = '';
     $('#login-form').reset();
@@ -126,15 +244,32 @@
     if (!/^\d{4,8}$/.test(pin)) return loginError('El PIN debe tener entre 4 y 8 números');
     if (loginMode === 'setup') {
       if (pin !== $('#pin2').value.trim()) return loginError('Los PIN no coinciden');
-      db.pinHash = await hash(pin); save();
-      enter(); toast('PIN guardado');
+      try { localStorage.setItem(pinKey(), await hash(user.id + ':' + pin)); } catch {}
+      await enter(); toast('PIN guardado');
     } else {
-      if ((await hash(pin)) !== db.pinHash) { $('#pin').value = ''; return loginError('PIN incorrecto'); }
-      enter();
+      let stored = null;
+      try { stored = localStorage.getItem(pinKey()); } catch {}
+      if ((await hash(user.id + ':' + pin)) !== stored) { $('#pin').value = ''; return loginError('PIN incorrecto'); }
+      await enter();
     }
   });
-  function enter() {
-    try { sessionStorage.setItem(AUTH, db.pinHash); } catch {}
+  $('#forgot-pin').addEventListener('click', async () => {
+    try { localStorage.removeItem(pinKey()); } catch {}
+    await sb.auth.signOut();
+    user = null; signUp = false; showAuth();
+  });
+
+  async function enter() {
+    try { sessionStorage.setItem(UNLOCK, user.id); } catch {}
+    showLoading();
+    try {
+      await loadAll();
+    } catch (err) {
+      console.error(err);
+      $('#loading').textContent = 'No se pudieron cargar tus datos. Revisa tu conexión y recarga la página.';
+      return;
+    }
+    $('#account-email').textContent = `Cuenta: ${user.email}`;
     $('#login').hidden = true;
     $('#app').hidden = false;
     renderAll();
@@ -298,12 +433,12 @@
       method: f.method.value, client: f.client.value.trim(), createdAt: Date.now(),
     };
     db.cuts.push(cut);
+    put('cuts', cut);
     if (pendingApptId) {
       const a = db.appts.find((x) => x.id === pendingApptId);
-      if (a) a.status = 'done';
+      if (a) { a.status = 'done'; put('appts', a); }
       pendingApptId = null;
     }
-    save();
     const keepDate = f.date.value;
     resetCutForm();
     f.date.value = keepDate;
@@ -351,7 +486,7 @@
       id: uid(), date: f.date.value, time: f.time.value, client: f.client.value.trim(),
       phone: f.phone.value.trim(), price: Number(f.price.value) || 0, note: f.note.value.trim(), status: 'pending',
     };
-    db.appts.push(appt); save();
+    db.appts.push(appt); put('appts', appt);
     f.reset(); f.date.value = today();
     renderAll(appt.id);
     toast(clash ? `Cita agendada (ojo: ya tenías a ${clash.client} a esa hora)` : `Cita con ${appt.client} agendada`);
@@ -386,7 +521,7 @@
     e.preventDefault();
     const f = expForm;
     const exp = { id: uid(), date: f.date.value, concept: f.concept.value.trim(), amount: Number(f.amount.value) || 0, category: f.category.value };
-    db.expenses.push(exp); save();
+    db.expenses.push(exp); put('expenses', exp);
     const keep = f.date.value, cat = f.category.value;
     f.reset(); f.date.value = keep; f.category.value = cat;
     expFilter.value = keep.slice(0, 7);
@@ -421,11 +556,11 @@
     const idx = db[collection].findIndex((x) => x.id === id);
     if (idx < 0) return;
     const [item] = db[collection].splice(idx, 1);
-    save();
+    del(collection, id);
     const li = $(`.item[data-id="${id}"]`);
     const finish = () => renderAll();
     if (li) { li.classList.add('leaving'); setTimeout(finish, 180); } else finish();
-    toast(`${label} eliminado`, { label: 'Deshacer', run: () => { db[collection].splice(idx, 0, item); save(); renderAll(item.id); } });
+    toast(`${label} eliminado`, { label: 'Deshacer', run: () => { db[collection].splice(idx, 0, item); put(collection, item); renderAll(item.id); } });
   }
 
   document.addEventListener('click', (e) => {
@@ -437,8 +572,8 @@
     else if (b.dataset.cancelAppt) {
       const a = db.appts.find((x) => x.id === b.dataset.cancelAppt);
       if (!a) return;
-      a.status = 'cancel'; save(); renderAll();
-      toast(`Cita de ${a.client} cancelada`, { label: 'Deshacer', run: () => { a.status = 'pending'; save(); renderAll(); } });
+      a.status = 'cancel'; put('appts', a); renderAll();
+      toast(`Cita de ${a.client} cancelada`, { label: 'Deshacer', run: () => { a.status = 'pending'; put('appts', a); renderAll(); } });
     } else if (b.dataset.doneAppt) {
       const a = db.appts.find((x) => x.id === b.dataset.doneAppt);
       if (!a) return;
@@ -469,11 +604,10 @@
     db.shop = setForm.shop.value.trim();
     db.currency = setForm.currency.value;
     db.prices = setForm.prices.value.split(/[,;\s]+/).map(Number).filter((n) => n > 0).slice(0, 8);
-    save(); renderAll(); toast('Ajustes guardados');
+    saveSettings(); renderAll(); toast('Ajustes guardados');
   });
   $('#export-btn').addEventListener('click', () => {
-    const { pinHash, ...data } = db;
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `barber-check-${today()}.json`;
@@ -485,13 +619,27 @@
     try {
       const data = JSON.parse(await file.text());
       if (!Array.isArray(data.cuts) || !Array.isArray(data.expenses)) throw new Error();
-      if (!confirm('Esto reemplazará los datos actuales por los del respaldo. ¿Continuar?')) return;
-      db = { ...defaults(), ...data, pinHash: db.pinHash };
-      save(); renderAll(); toast('Respaldo restaurado');
-    } catch { toast('Archivo de respaldo no válido'); }
+      if (!confirm('Se agregarán a tu cuenta los cortes, citas y gastos del respaldo. ¿Continuar?')) return;
+      // Upsert by id: restoring the same backup twice doesn't duplicate anything.
+      const ok = (x) => x && x.id && x.date;
+      const results = await Promise.all([
+        sb.from('cuts').upsert(data.cuts.filter(ok).map((c) => toRow.cuts({ tip: 0, method: 'Efectivo', ...c, price: num(c.price), tip: num(c.tip) }))),
+        sb.from('expenses').upsert(data.expenses.filter(ok).map((x) => toRow.expenses({ category: 'otro', ...x, amount: num(x.amount) }))),
+        sb.from('appts').upsert((data.appts || []).filter(ok).map((a) => toRow.appts({ status: 'pending', ...a, price: num(a.price) }))),
+      ]);
+      const err = results.find((r) => r.error);
+      if (err) throw err.error;
+      if (data.currency) { db.currency = data.currency; db.shop = data.shop || db.shop; db.prices = (data.prices || db.prices).map(num); await saveSettings(); }
+      await loadAll(); renderAll(); toast('Respaldo restaurado');
+    } catch (err) { console.error(err); toast('Archivo de respaldo no válido'); }
     e.target.value = '';
   });
-  $('#logout').addEventListener('click', () => { try { sessionStorage.removeItem(AUTH); } catch {} showLogin('login'); });
+  $('#lock').addEventListener('click', () => { try { sessionStorage.removeItem(UNLOCK); } catch {} showLogin('login'); });
+  $('#logout').addEventListener('click', async () => {
+    try { sessionStorage.removeItem(UNLOCK); } catch {}
+    await sb.auth.signOut();
+    user = null; db = defaults(); signUp = false; showAuth();
+  });
   $('#change-pin').addEventListener('click', () => showLogin('setup'));
 
   // ---------- Render ----------
@@ -511,17 +659,17 @@
   }
 
   // ---------- Boot ----------
-  function boot() {
+  async function boot() {
     resetCutForm();
     cutsFilter.value = today();
     apptForm.date.value = today();
     expForm.date.value = today();
     expFilter.value = today().slice(0, 7);
-    let authed = false;
-    try { authed = db.pinHash && sessionStorage.getItem(AUTH) === db.pinHash; } catch {}
-    if (!db.pinHash) showLogin('setup');
-    else if (authed) enter();
-    else showLogin('login');
+    $('#login').hidden = false;
+    showLoading();
+    const { data } = await sb.auth.getSession();
+    user = data.session ? data.session.user : null;
+    if (user) afterAuth(); else showAuth();
   }
   boot();
 })();

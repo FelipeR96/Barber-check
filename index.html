@@ -17,12 +17,23 @@
     <div class="login-card">
       <div class="brand brand-lg"><span class="pole" aria-hidden="true"></span>Barber <em>Check</em></div>
       <p class="muted" id="login-hint">Ingresa tu PIN para continuar</p>
-      <form id="login-form" autocomplete="off">
+
+      <form id="auth-form" hidden>
+        <input id="email" type="email" autocomplete="email" placeholder="Correo" required />
+        <input id="password" type="password" autocomplete="current-password" minlength="6" placeholder="Contraseña" required />
+        <button class="btn btn-primary btn-block" type="submit" id="auth-btn">Entrar</button>
+        <button class="link" type="button" id="auth-toggle">¿Primera vez? Crear cuenta</button>
+        <p class="error" id="auth-error" role="alert"></p>
+      </form>
+
+      <form id="login-form" autocomplete="off" hidden>
         <input id="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" placeholder="••••" required />
         <input id="pin2" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" placeholder="Repite el PIN" hidden />
         <button class="btn btn-primary btn-block" type="submit" id="login-btn">Entrar</button>
         <p class="error" id="login-error" role="alert"></p>
+        <button class="link" type="button" id="forgot-pin">¿Olvidaste el PIN? Entrar con correo</button>
       </form>
+      <p class="muted loading-text" id="loading" hidden>Cargando tus datos…</p>
     </div>
   </section>
 
@@ -228,7 +239,7 @@
           </form>
           <article class="card form">
             <h2>Datos</h2>
-            <p class="muted">Tus datos se guardan en este navegador. Descarga un respaldo de vez en cuando.</p>
+            <p class="muted">Tus datos se guardan en la nube (Supabase) y los ves desde cualquier dispositivo con tu correo. <span id="account-email"></span></p>
             <div class="btn-row">
               <button class="btn" id="export-btn">Descargar respaldo</button>
               <label class="btn">Restaurar respaldo<input type="file" id="import-file" accept="application/json" hidden /></label>
@@ -237,6 +248,7 @@
             <h2>Seguridad</h2>
             <div class="btn-row">
               <button class="btn" id="change-pin">Cambiar PIN</button>
+              <button class="btn" id="lock">Bloquear</button>
               <button class="btn" id="logout">Cerrar sesión</button>
             </div>
           </article>
@@ -246,6 +258,8 @@
   </div>
 
   <div class="toaster" id="toaster" aria-live="polite"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
