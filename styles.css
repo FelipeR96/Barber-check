@@ -129,6 +129,39 @@ input::placeholder { color: #5f584d; }
 .pin-input {text-align: center; font-size: 22px; letter-spacing: 0.5em; padding: 14px; }
 .pin-input::placeholder { letter-spacing: 0.3em; }
 .error { color: var(--neg); font-size: 13px; min-height: 20px; margin: 0; }
+
+/* Show / hide password */
+.pw-field { position: relative; }
+.pw-field input { padding-right: 48px; }
+.pw-field .pin-input { padding-left: 48px; } /* keep the PIN visually centered */
+#pin2::placeholder { letter-spacing: 0.02em; font-size: 16px; }
+.eye {
+  position: absolute; top: 50%; right: 6px; width: 38px; height: 38px; margin-top: -19px;
+  border: 0; border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer;
+  display: grid; place-items: center; -webkit-tap-highlight-color: transparent;
+  transition: transform 160ms var(--ease-out), color 200ms ease, background-color 200ms ease;
+}
+.eye::before {
+  content: ""; width: 20px; height: 20px; background: currentColor;
+  -webkit-mask: var(--eye-icon) center / contain no-repeat; mask: var(--eye-icon) center / contain no-repeat;
+  --eye-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+}
+.eye[aria-pressed="true"] { color: var(--accent-2); }
+.eye[aria-pressed="true"]::before {
+  --eye-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.9 5.2A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-2.6 3.6M6.6 6.6A17.4 17.4 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6'/%3E%3Cpath d='M9.9 9.9a3 3 0 0 0 4.2 4.2'/%3E%3Cpath d='M2 2l20 20'/%3E%3C/svg%3E");
+}
+.eye:active { transform: scale(0.92); }
+.eye:focus-visible { outline: 2px solid rgba(217, 165, 91, 0.6); outline-offset: 0; }
+@media (hover: hover) and (pointer: fine) {
+  .eye:hover { color: var(--text); background: rgba(255, 240, 220, 0.06); }
+}
+
+/* Keep signed in */
+.check {
+  flex-direction: row; align-items: center; justify-content: center; gap: 8px;
+  font-size: 13px; color: var(--muted); cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent;
+}
+.check input { width: 18px; height: 18px; margin: 0; padding: 0; accent-color: var(--accent); flex: none; cursor: pointer; }
 .shake { animation: shake 360ms var(--ease-out); }
 @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
 @keyframes rise { from { opacity: 0; transform: translateY(12px) scale(0.98); } }

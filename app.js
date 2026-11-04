@@ -148,6 +148,19 @@
     timer = setTimeout(close, action ? 5000 : 2600);
   }
 
+  // ---------- Show / hide password ----------
+  function setEye(btn, show) {
+    const input = btn.previousElementSibling;
+    input.type = show ? 'text' : 'password';
+    btn.setAttribute('aria-pressed', String(show));
+    btn.setAttribute('aria-label', (show ? 'Ocultar ' : 'Mostrar ') + (input.classList.contains('pin-input') ? 'PIN' : 'contraseña'));
+  }
+  function resetEyes(scope) { scope.querySelectorAll('.eye').forEach((b) => setEye(b, false)); }
+  $$('.eye').forEach((btn) => {
+    btn.addEventListener('pointerdown', (e) => e.preventDefault()); // keep focus (and the keyboard) on the input
+    btn.addEventListener('click', () => setEye(btn, btn.getAttribute('aria-pressed') !== 'true'));
+  });
+
   // ---------- Auth ----------
   // Step 1: email + password (Supabase). Step 2: device PIN as a quick lock.
   let signUp = false;
@@ -210,7 +223,7 @@
 
   function afterAuth() {
     let pin = null, unlocked = false;
-    try { pin = localStorage.getItem(pinKey()); unlocked = sessionStorage.getItem(UNLOCK) === user.id; } catch {}
+    try { pin = localStorage.getItem(pinKey()); unlocked = sessionStorage.getItem(UNLOCK) === user.id || localStorage.getItem(UNLOCK) === user.id; } catch {}
     if (!pin) showLogin('setup');
     else if (unlocked) enter();
     else showLogin('login');
@@ -226,12 +239,13 @@
     $('#login-form').hidden = false;
     $('#forgot-pin').hidden = mode === 'setup';
     const setup = mode === 'setup';
-    $('#pin2').hidden = !setup;
+    $('#pin2-field').hidden = !setup;
     $('#pin2').required = setup;
     $('#login-hint').textContent = setup ? 'Crea un PIN de 4 a 8 dígitos para este dispositivo' : 'Ingresa tu PIN para continuar';
     $('#login-btn').textContent = setup ? 'Crear PIN' : 'Entrar';
     $('#login-error').textContent = '';
     $('#login-form').reset();
+    resetEyes($('#login-form'));
     setTimeout(() => $('#pin').focus(), 50);
   }
   function loginError(msg) {
@@ -260,8 +274,16 @@
     user = null; signUp = false; showAuth();
   });
 
+  function clearUnlock() {
+    try { sessionStorage.removeItem(UNLOCK); localStorage.removeItem(UNLOCK); } catch {}
+  }
   async function enter() {
-    try { sessionStorage.setItem(UNLOCK, user.id); } catch {}
+    try {
+      sessionStorage.setItem(UNLOCK, user.id);
+      // "Mantener sesión iniciada": the unlock survives closing the browser/app.
+      if ($('#remember').checked) localStorage.setItem(UNLOCK, user.id);
+      else localStorage.removeItem(UNLOCK);
+    } catch {}
     showLoading();
     try {
       await loadAll();
@@ -653,9 +675,9 @@
     } catch (err) { console.error(err); toast('Archivo de respaldo no válido'); }
     e.target.value = '';
   });
-  $('#lock').addEventListener('click', () => { try { sessionStorage.removeItem(UNLOCK); } catch {} showLogin('login'); });
+  $('#lock').addEventListener('click', () => { clearUnlock(); showLogin('login'); });
   $('#logout').addEventListener('click', async () => {
-    try { sessionStorage.removeItem(UNLOCK); } catch {}
+    clearUnlock();
     await sb.auth.signOut();
     user = null; db = defaults(); signUp = false; showAuth();
   });

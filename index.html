@@ -20,15 +20,25 @@
 
       <form id="auth-form" hidden>
         <input id="email" type="email" autocomplete="email" placeholder="Correo" required />
-        <input id="password" type="password" autocomplete="current-password" minlength="6" placeholder="Contraseña" required />
+        <div class="pw-field">
+          <input id="password" type="password" autocomplete="current-password" minlength="6" placeholder="Contraseña" required />
+          <button type="button" class="eye" aria-label="Mostrar contraseña" aria-pressed="false"></button>
+        </div>
         <button class="btn btn-primary btn-block" type="submit" id="auth-btn">Entrar</button>
         <button class="link" type="button" id="auth-toggle">¿Primera vez? Crear cuenta</button>
         <p class="error" id="auth-error" role="alert"></p>
       </form>
 
       <form id="login-form" autocomplete="off" hidden>
-        <input id="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" placeholder="••••" required />
-        <input id="pin2" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" placeholder="Repite el PIN" hidden />
+        <div class="pw-field">
+          <input id="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" placeholder="••••" required />
+          <button type="button" class="eye" aria-label="Mostrar PIN" aria-pressed="false"></button>
+        </div>
+        <div class="pw-field" id="pin2-field" hidden>
+          <input id="pin2" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" placeholder="Repite el PIN" />
+          <button type="button" class="eye" aria-label="Mostrar PIN" aria-pressed="false"></button>
+        </div>
+        <label class="check"><input type="checkbox" id="remember" checked /> <span>Mantener sesión iniciada en este dispositivo</span></label>
         <button class="btn btn-primary btn-block" type="submit" id="login-btn">Entrar</button>
         <p class="error" id="login-error" role="alert"></p>
         <button class="link" type="button" id="forgot-pin">¿Olvidaste el PIN? Entrar con correo</button>
