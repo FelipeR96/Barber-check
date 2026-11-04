@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e0d0b" />
+  <title>Barber Check</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💈</text></svg>" />
+</head>
+<body>
+  <!-- LOGIN -->
+  <section id="login" class="login" hidden>
+    <div class="login-card">
+      <div class="brand brand-lg"><span class="pole" aria-hidden="true"></span>Barber <em>Check</em></div>
+      <p class="muted" id="login-hint">Ingresa tu PIN para continuar</p>
+      <form id="login-form" autocomplete="off">
+        <input id="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" placeholder="••••" required />
+        <input id="pin2" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" placeholder="Repite el PIN" hidden />
+        <button class="btn btn-primary btn-block" type="submit" id="login-btn">Entrar</button>
+        <p class="error" id="login-error" role="alert"></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- APP -->
+  <div id="app" class="app" hidden>
+    <header class="topbar">
+      <div class="brand"><span class="pole" aria-hidden="true"></span>Barber <em>Check</em></div>
+      <nav class="tabs" id="tabs" role="tablist">
+        <span class="tab-indicator" id="tab-indicator" aria-hidden="true"></span>
+        <button role="tab" data-view="resumen" class="tab is-active">Resumen</button>
+        <button role="tab" data-view="cortes" class="tab">Cortes</button>
+        <button role="tab" data-view="citas" class="tab">Citas</button>
+        <button role="tab" data-view="gastos" class="tab">Gastos</button>
+        <button role="tab" data-view="ajustes" class="tab">Ajustes</button>
+      </nav>
+    </header>
+
+    <main class="main">
+      <!-- RESUMEN -->
+      <section class="view is-active" data-view="resumen">
+        <div class="view-head">
+          <div>
+            <p class="eyebrow" id="today-label"></p>
+            <h1>Hola, <em>barbero</em>.</h1>
+          </div>
+          <button class="btn btn-primary" data-quick="cortes">+ Registrar corte</button>
+        </div>
+
+        <div class="period-switch" id="period-switch" role="radiogroup">
+          <button data-period="day" class="is-active">Hoy</button>
+          <button data-period="week">Semana</button>
+          <button data-period="month">Mes</button>
+        </div>
+
+        <div class="kpis">
+          <article class="kpi kpi-hero">
+            <p class="kpi-label">Ganancia neta</p>
+            <p class="kpi-value" id="kpi-net">$0</p>
+            <p class="kpi-sub" id="kpi-net-sub"></p>
+          </article>
+          <article class="kpi">
+            <p class="kpi-label">Ingresos</p>
+            <p class="kpi-value pos" id="kpi-income">$0</p>
+            <p class="kpi-sub" id="kpi-cuts"></p>
+          </article>
+          <article class="kpi">
+            <p class="kpi-label">Gastos</p>
+            <p class="kpi-value neg" id="kpi-expense">$0</p>
+            <p class="kpi-sub" id="kpi-expense-sub"></p>
+          </article>
+          <article class="kpi">
+            <p class="kpi-label">Ticket promedio</p>
+            <p class="kpi-value" id="kpi-avg">$0</p>
+            <p class="kpi-sub" id="kpi-avg-sub"></p>
+          </article>
+        </div>
+
+        <div class="grid-2">
+          <article class="card">
+            <div class="card-head">
+              <h2>Últimos 14 días</h2>
+              <div class="legend"><span class="dot dot-in"></span>Ingresos <span class="dot dot-out"></span>Gastos</div>
+            </div>
+            <div class="chart" id="chart"></div>
+          </article>
+          <article class="card">
+            <div class="card-head">
+              <h2>Próximas citas</h2>
+              <button class="link" data-quick="citas">Ver todas</button>
+            </div>
+            <ul class="list" id="upcoming-mini"></ul>
+          </article>
+        </div>
+
+        <article class="card">
+          <div class="card-head"><h2>Resumen por mes</h2></div>
+          <div class="table-wrap">
+            <table class="table" id="months-table">
+              <thead><tr><th>Mes</th><th>Cortes</th><th>Ingresos</th><th>Gastos</th><th>Neto</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <!-- CORTES -->
+      <section class="view" data-view="cortes">
+        <div class="view-head"><div><p class="eyebrow">Ingresos</p><h1>Corte por <em>corte</em>.</h1></div></div>
+        <div class="grid-form">
+          <form class="card form" id="cut-form">
+            <h2>Registrar corte cobrado</h2>
+            <label>¿Cuánto cobraste?<input name="price" class="amount-input" type="number" min="0" step="any" inputmode="decimal" required placeholder="0" /></label>
+            <div class="chips" id="price-chips"></div>
+            <div class="row">
+              <label>Propina<input name="tip" type="number" min="0" step="any" inputmode="decimal" placeholder="0" /></label>
+              <label>Pago
+                <select name="method"><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option></select>
+              </label>
+            </div>
+            <div class="row">
+              <label>Fecha<input name="date" type="date" required /></label>
+              <label>Hora<input name="time" type="time" /></label>
+            </div>
+            <label>Cliente / nota<input name="client" placeholder="Opcional" /></label>
+            <button class="btn btn-primary btn-block" type="submit">Guardar corte</button>
+          </form>
+          <article class="card">
+            <div class="card-head">
+              <h2 id="cuts-title">Cortes de hoy</h2>
+              <input type="date" id="cuts-filter" class="input-sm" aria-label="Filtrar por fecha" />
+            </div>
+            <p class="day-total" id="cuts-total"></p>
+            <ul class="list" id="cuts-list"></ul>
+          </article>
+        </div>
+      </section>
+
+      <!-- CITAS -->
+      <section class="view" data-view="citas">
+        <div class="view-head"><div><p class="eyebrow">Agenda</p><h1>Tus <em>citas</em>.</h1></div></div>
+        <div class="grid-form">
+          <form class="card form" id="appt-form">
+            <h2>Agendar cita</h2>
+            <label>Cliente<input name="client" required placeholder="Nombre" /></label>
+            <label>Teléfono<input name="phone" type="tel" placeholder="Opcional" /></label>
+            <div class="row">
+              <label>Fecha<input name="date" type="date" required /></label>
+              <label>Hora<input name="time" type="time" required /></label>
+            </div>
+            <div class="row">
+              <label>Precio a cobrar<input name="price" type="number" min="0" step="any" inputmode="decimal" placeholder="0" /></label>
+              <label>Nota<input name="note" placeholder="Opcional" /></label>
+            </div>
+            <button class="btn btn-primary btn-block" type="submit">Agendar</button>
+          </form>
+          <article class="card">
+            <div class="card-head">
+              <h2>Próximas</h2>
+              <div class="seg" id="appt-seg">
+                <button data-seg="upcoming" class="is-active">Próximas</button>
+                <button data-seg="past">Historial</button>
+              </div>
+            </div>
+            <ul class="list" id="appts-list"></ul>
+          </article>
+        </div>
+      </section>
+
+      <!-- GASTOS -->
+      <section class="view" data-view="gastos">
+        <div class="view-head"><div><p class="eyebrow">Egresos</p><h1>Costos y <em>gastos</em>.</h1></div></div>
+        <div class="grid-form">
+          <form class="card form" id="exp-form">
+            <h2>Nuevo gasto</h2>
+            <label>Concepto<input name="concept" required placeholder="Arriendo, navajas, cera…" /></label>
+            <div class="row">
+              <label>Monto<input name="amount" type="number" min="0" step="any" required placeholder="0" /></label>
+              <label>Fecha<input name="date" type="date" required /></label>
+            </div>
+            <label>Tipo
+              <select name="category">
+                <option value="fijo">Costo fijo (arriendo, luz, internet)</option>
+                <option value="insumo">Insumos (productos, cuchillas)</option>
+                <option value="equipo">Equipo / herramientas</option>
+                <option value="otro">Otro gasto</option>
+              </select>
+            </label>
+            <button class="btn btn-primary btn-block" type="submit">Guardar gasto</button>
+          </form>
+          <article class="card">
+            <div class="card-head">
+              <h2 id="exp-title">Gastos del mes</h2>
+              <input type="month" id="exp-filter" class="input-sm" aria-label="Filtrar por mes" />
+            </div>
+            <div class="cat-bars" id="cat-bars"></div>
+            <ul class="list" id="exp-list"></ul>
+          </article>
+        </div>
+      </section>
+
+      <!-- AJUSTES -->
+      <section class="view" data-view="ajustes">
+        <div class="view-head"><div><p class="eyebrow">Configuración</p><h1><em>Ajustes</em>.</h1></div></div>
+        <div class="grid-2">
+          <form class="card form" id="settings-form">
+            <h2>General</h2>
+            <label>Nombre de la barbería<input name="shop" placeholder="Mi barbería" /></label>
+            <label>Moneda
+              <select name="currency">
+                <option value="CLP">Peso chileno (CLP)</option>
+                <option value="COP">Peso colombiano (COP)</option>
+                <option value="MXN">Peso mexicano (MXN)</option>
+                <option value="ARS">Peso argentino (ARS)</option>
+                <option value="PEN">Sol peruano (PEN)</option>
+                <option value="USD">Dólar (USD)</option>
+                <option value="EUR">Euro (EUR)</option>
+              </select>
+            </label>
+            <label>Precios rápidos <span class="muted">(botones al registrar un corte, separados por coma)</span>
+              <input name="prices" placeholder="8000, 10000, 12000" />
+            </label>
+            <button class="btn btn-primary" type="submit">Guardar ajustes</button>
+          </form>
+          <article class="card form">
+            <h2>Datos</h2>
+            <p class="muted">Tus datos se guardan en este navegador. Descarga un respaldo de vez en cuando.</p>
+            <div class="btn-row">
+              <button class="btn" id="export-btn">Descargar respaldo</button>
+              <label class="btn">Restaurar respaldo<input type="file" id="import-file" accept="application/json" hidden /></label>
+            </div>
+            <hr />
+            <h2>Seguridad</h2>
+            <div class="btn-row">
+              <button class="btn" id="change-pin">Cambiar PIN</button>
+              <button class="btn" id="logout">Cerrar sesión</button>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toaster" id="toaster" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
